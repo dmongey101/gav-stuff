@@ -1,8 +1,6 @@
 from __future__ import print_function
-
 import os.path
 from time import sleep
-
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -16,19 +14,18 @@ from selenium.webdriver.common.by import By
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 # The ID and range of a sample spreadsheet.
-SAMPLE_SPREADSHEET_ID = '1TrBjFW-bFRMBze4ShWvYtB9eFvEyvyW10J_Aoqfw4fQ'
-SAMPLE_RANGE_NAME_SHEET1 = 'Sheet1!A1:B'
-NAME_SHEET2 = 'Sheet2!A1:B'
 
+row = 2
+
+SAMPLE_SPREADSHEET_ID = '1TrBjFW-bFRMBze4ShWvYtB9eFvEyvyW10J_Aoqfw4fQ' #Add the ID of the spreadsheet with you urls and then where you
+SAMPLE_RANGE_NAME_SHEET1 = 'Sheet1!A2:A' # Where your URLS begin on the sheets
+    
 def main():
-    service = get_google_service()
-    data = get_data(service)
+    service = get_google_service() # connects to your google sheets
+    data = get_data(service) # getting the url from the sheets
+    data = run_selenium(data) 
 
-    for row in data:
-        top_word, word_count = run_selenium(row)
-        # print(top_word, word_count)
-        # last_row = get_last_row(service) + 1
-        append_values([[top_word, word_count]], service)
+    append_values(data, service)
 
 def get_google_service():
     """Shows basic usage of the Sheets API.
@@ -65,7 +62,7 @@ def get_data(service):
         if not values:
             print('No data found.')
             return
-
+        print(values)
         return values
     except HttpError as err:
         print(err)
@@ -74,38 +71,32 @@ def get_data(service):
 def run_selenium(data):
     service = Service(executable_path="/path/to/chromedriver")
     driver = webdriver.Chrome(service=service)
-    driver.maximize_window()
     driver.get("https://wordcounter.net/website-word-count")
     input = driver.find_element(By.XPATH, '//*[@id="url"]')
-    input.send_keys(data[0])
-    form = driver.find_element(By.XPATH, '/html/body/div[6]/div/form/div/div[2]/input')
-    form.click()
-    sleep(3)
-    top_word = driver.find_element(By.XPATH, '/html/body/div[6]/div/div[2]/div[1]/div/table/tbody/tr[1]/td[2]')
-    top_word_inner_html = top_word.get_attribute("innerHTML")
-    total_word_count = driver.find_element(By.XPATH, '//*[@id="word_count_block"]/span')
-    total_word_count_inner_html = total_word_count.get_attribute('innerHTML')
-    index_to_remove = total_word_count_inner_html.index('<')
-    total_word_count_inner_html = total_word_count_inner_html[:index_to_remove]
-    sleep(5)
+    return_data = []
+    for row in data:
+        input = driver.find_element(By.XPATH, '//*[@id="url"]')
+        input.send_keys(row[0])
+        form = driver.find_element(By.XPATH, '/html/body/div[6]/div/form/div/div[2]/input')
+        form.click()
+        top_word = driver.find_element(By.XPATH, '/html/body/div[6]/div/div[2]/div[1]/div/table/tbody/tr[1]/td[1]')
+        top_word_inner_html = top_word.get_attribute('innerHTML')
+        top_word_count = driver.find_element(By.XPATH, '/html/body/div[6]/div/div[2]/div[1]/div/table/tbody/tr[1]/td[2]')
+        top_word_count_inner_html = top_word_count.get_attribute("innerHTML")
+        total_word_count = driver.find_element(By.XPATH, '//*[@id="word_count_block"]/span')
+        total_word_count_inner_html = total_word_count.get_attribute('innerHTML')
+        index_to_remove = total_word_count_inner_html.index('<')
+        total_word_count_inner_html = total_word_count_inner_html[:index_to_remove]
+        arr_to_append = [total_word_count_inner_html, top_word_inner_html, top_word_count_inner_html]
+        return_data.append(arr_to_append)
     driver.close()
-    return top_word_inner_html, total_word_count_inner_html
-
-def get_last_row(service):
-  """Gets the last row in a sheet"""
-  # Call the Sheets API to get the number of rows in the sheet
-  result = service.spreadsheets().get(
-      spreadsheetId=SAMPLE_SPREADSHEET_ID,
-      ranges=[NAME_SHEET2],
-      includeGridData=False
-  ).execute()
-  # Return the number of rows in the sheet
-  return result['sheets'][0]['properties']['gridProperties']['rowCount']
+    return return_data
 
 def append_values(values, service):
-    result = service.spreadsheets().values().append(
+    range = f'Sheet1!B2'
+    result = service.spreadsheets().values().update(
         spreadsheetId=SAMPLE_SPREADSHEET_ID, 
-        range=NAME_SHEET2, 
+        range=range, 
         valueInputOption='RAW',
         body={'values': values}
     ).execute()
@@ -114,3 +105,5 @@ def append_values(values, service):
 
 if __name__ == '__main__':
     main()
+
+
